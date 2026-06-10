@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZIR Assistant</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --bg-soft: #1a2129;
+      --bg-card: #232b35;
+      --border: #2f3a46;
+      --text: #e6edf3;
+      --text-dim: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79b8ff;
+      --user: #2d4a5e;
+      --assistant: #1f2a35;
+      --danger: #f85149;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      line-height: 1.55;
+    }
+    header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--bg-soft);
+    }
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+    }
+    header .badge {
+      font-size: 12px;
+      color: var(--text-dim);
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .badge.ok { color: #7ee787; border-color: #2ea04333; }
+    .badge.err { color: var(--danger); border-color: #f8514933; }
+
+    main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      max-width: 880px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .msg {
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .msg.user {
+      background: var(--user);
+      margin-left: 40px;
+    }
+    .msg.assistant {
+      background: var(--assistant);
+      border: 1px solid var(--border);
+      margin-right: 40px;
+    }
+    .msg .role {
+      font-size: 11px;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      letter-spacing: 0.5px;
+    }
+    .citations {
+      margin-top: 12px;
+      padding-top: 10px;
+      border-top: 1px dashed var(--border);
+      font-size: 13px;
+    }
+    .citations .title {
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    .citations a {
+      display: block;
+      color: var(--accent);
+      text-decoration: none;
+      padding: 3px 0;
+    }
+    .citations a:hover { color: var(--accent-hover); text-decoration: underline; }
+    .citations .status-bad { color: #f0883e; font-weight: 600; }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 14px 20px;
+      background: var(--bg-soft);
+    }
+    .input-row {
+      max-width: 880px;
+      margin: 0 auto;
+      display: flex;
+      gap: 10px;
+    }
+    textarea {
+      flex: 1;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-card);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 15px;
+      resize: none;
+      min-height: 44px;
+      max-height: 160px;
+    }
+    textarea:focus { outline: none; border-color: var(--accent); }
+    button {
+      padding: 0 20px;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #0f1419;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .cursor {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: var(--text);
+      vertical-align: -2px;
+      animation: blink 1s steps(2) infinite;
+      margin-left: 2px;
+    }
+    @keyframes blink { to { visibility: hidden; } }
+
+    .hint {
+      max-width: 880px;
+      margin: 60px auto 0;
+      text-align: center;
+      color: var(--text-dim);
+    }
+    .hint h2 { color: var(--text); }
+    .hint .examples {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .hint .example {
+      padding: 10px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text);
+    }
+    .hint .example:hover { border-color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ZIR Assistant <span style="color: var(--text-dim); font-weight: 400; font-size: 14px;">· довідник по ЗІР</span></h1>
+    <span id="status" class="badge">…</span>
+  </header>
+
+  <main id="chat">
+    <div class="hint" id="hint">
+      <h2>Питайте про податки</h2>
+      <p>Відповіді генеруються на основі <a href="https://zir.tax.gov.ua" target="_blank" style="color: var(--accent);">zir.tax.gov.ua</a> з посиланнями на першоджерела.</p>
+      <div class="examples">
+        <div class="example">Яка ставка ПДВ для IT-послуг?</div>
+        <div class="example">Хто може бути ФОП 3-ї групи?</div>
+        <div class="example">Як подати податкову декларацію онлайн?</div>
+        <div class="example">Що таке податкова соціальна пільга?</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="input-row">
+      <textarea id="input" placeholder="Ваше питання… (Enter — надіслати, Shift+Enter — новий рядок)" rows="1"></textarea>
+      <button id="send">Надіслати</button>
+    </div>
+  </footer>
+
+  <script>
+    const chatEl = document.getElementById('chat');
+    const hintEl = document.getElementById('hint');
+    const inputEl = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+    const statusEl = document.getElementById('status');
+
+    async function checkHealth() {
+      try {
+        const r = await fetch('/api/health');
+        const d = await r.json();
+        if (d.status === 'ok') {
+          statusEl.textContent = `${d.documents.toLocaleString()} док · ${d.model}`;
+          statusEl.className = 'badge ok';
+        } else {
+          statusEl.textContent = 'База не готова';
+          statusEl.className = 'badge err';
+        }
+      } catch {
+        statusEl.textContent = 'offline';
+        statusEl.className = 'badge err';
+      }
+    }
+    checkHealth();
+
+    inputEl.addEventListener('input', () => {
+      inputEl.style.height = 'auto';
+      inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px';
+    });
+
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        send();
+      }
+    });
+
+    document.querySelectorAll('.example').forEach(el => {
+      el.addEventListener('click', () => {
+        inputEl.value = el.textContent;
+        send();
+      });
+    });
+
+    sendBtn.addEventListener('click', send);
+
+    function addMsg(role, initialText = '') {
+      const el = document.createElement('div');
+      el.className = 'msg ' + role;
+      const roleEl = document.createElement('div');
+      roleEl.className = 'role';
+      roleEl.textContent = role === 'user' ? 'Ви' : 'Асистент';
+      el.appendChild(roleEl);
+      const body = document.createElement('div');
+      body.className = 'body';
+      body.textContent = initialText;
+      el.appendChild(body);
+      chatEl.appendChild(el);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return { root: el, body };
+    }
+
+    function renderCitations(container, items) {
+      if (!items || items.length === 0) return;
+      const block = document.createElement('div');
+      block.className = 'citations';
+      const title = document.createElement('div');
+      title.className = 'title';
+      title.textContent = 'Джерела:';
+      block.appendChild(title);
+      items.forEach(c => {
+        const a = document.createElement('a');
+        a.href = c.url;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        let label = `[№${c.id}] ${c.question}`;
+        if (c.category) label = `${c.category} — ${label}`;
+        a.textContent = label;
+        if (c.status && c.status.toLowerCase().includes('не чин')) {
+          const warn = document.createElement('span');
+          warn.className = 'status-bad';
+          warn.textContent = ' [НЕ ЧИННА]';
+          a.appendChild(warn);
+        }
+        block.appendChild(a);
+      });
+      container.appendChild(block);
+    }
+
+    async function send() {
+      const q = inputEl.value.trim();
+      if (!q) return;
+      if (hintEl) { hintEl.remove(); }
+      inputEl.value = '';
+      inputEl.style.height = 'auto';
+      sendBtn.disabled = true;
+
+      addMsg('user', q);
+      const { root, body } = addMsg('assistant', '');
+      const cursor = document.createElement('span');
+      cursor.className = 'cursor';
+      body.appendChild(cursor);
+
+      try {
+        const resp = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: q })
+        });
+        if (!resp.ok || !resp.body) {
+          throw new Error(`HTTP ${resp.status}`);
+        }
+
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let text = '';
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parts = buffer.split('\n\n');
+          buffer = parts.pop();
+          for (const part of parts) {
+            const line = part.trim();
+            if (!line.startsWith('data:')) continue;
+            const payload = line.slice(5).trim();
+            if (!payload) continue;
+            let evt;
+            try { evt = JSON.parse(payload); } catch { continue; }
+
+            if (evt.type === 'citations') {
+              renderCitations(root, evt.items);
+            } else if (evt.type === 'token') {
+              text += evt.text;
+              cursor.remove();
+              body.textContent = text;
+              body.appendChild(cursor);
+              chatEl.scrollTop = chatEl.scrollHeight;
+            } else if (evt.type === 'done') {
+              cursor.remove();
+            } else if (evt.type === 'error') {
+              cursor.remove();
+              body.textContent = 'Помилка: ' + evt.message;
+              body.style.color = 'var(--danger)';
+            }
+          }
+        }
+        cursor.remove();
+      } catch (e) {
+        cursor.remove();
+        body.textContent = 'Помилка: ' + e.message;
+        body.style.color = 'var(--danger)';
+      } finally {
+        sendBtn.disabled = false;
+        inputEl.focus();
+      }
+    }
+  </script>
+</body>
+</html>
